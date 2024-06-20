@@ -1,0 +1,79 @@
+1. Добавить пользователя для получения jwt токена
+   файл: /symfony/config/packages/security.yaml
+   действие:
+   ___________________________________________________________________________________________________________________________________
+            providers:
+                users_in_memory:
+                    memory:
+                        users:
+                            admin: { password: '$2y$13$VYfi2.p80EIalhfNQUCEJeuI4UIBCs7Mn1AAatfh8DEcIYZYWuXcm', roles: ['ROLE_ADMIN'] }
+   ___________________________________________________________________________________________________________________________________
+
+   получить ХЭШ пароля
+
+   php bin/console security:hash-password 1234
+
+2. Добавить роут, стрим, топик в класс RouteMap
+   Директория: /rq_queue/src/RouteLoader/
+   Добавить роут для записи задачи в очередь
+   Директория: /rq_queue/src/RouteLoader/Routes
+
+   <?php
+
+   namespace App\RqQueue\RouteLoader\Routes;
+
+   use App\RqQueue\Exception\ApiException;
+   use App\RqQueue\RouteLoader\AbstractRoute;
+   use App\RqQueue\RouteLoader\RouteInterface;
+   use App\RqQueue\RouteLoader\RouteMap;
+
+   class QueueRoute extends AbstractRoute implements RouteInterface
+   {
+
+       protected function routePath(): void
+       {
+           $this->routePath = RouteMap::QUEUE;
+       }
+
+       protected function bodyJson(string $json): void
+       {
+           $this->bodyJson = $json;
+       }
+
+       protected function streamName(): void
+       {
+           $this->streamName = RouteMap::streamName(RouteMap::QUEUE);
+       }
+
+       protected function validate(\stdClass $std): void
+       {
+           $std->queue ?? throw ApiException::custom('parameter queue will be not empty', 400);
+       }
+
+       protected function topicName(): void
+       {
+           $this->topicName = RouteMap::topicName(RouteMap::QUEUE);
+       }
+   }
+
+3. Добавить контроллер symfony
+   Директория: /symfony/src/Controller
+   Добавить ивент symfony, наследуя класс NatsEventAbstract
+   Директория: /symfony/src/Event/Nats
+   Добавить листенер symfony, наследую класс AbstractListener
+   Директория: /symfony/src/EventListener/Nats
+   Заполнить класс RouteMap новыми свойствами
+   Директория: /symfony/src/Service/Nats/
+
+4. Добавить горутину к основному процессу для запуска обработчика на стороне symfony
+   Директория: /go/cmd/
+   Файл: main.go
+
+   <code>
+        nats.CheckStreamIsNotReadMessage("queue", "").AddSymfonyListen(data)
+   </code>
+
+   Добавить в карту httpRoute новое значение роута symfony
+   Директория: /go/pkg/nats/listener
+   Файл: listener.go
+

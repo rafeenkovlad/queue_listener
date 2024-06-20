@@ -1,0 +1,148 @@
+version: '3.5'
+
+networks:
+  srv:
+    driver: bridge
+    name: srv
+    ipam:
+      config:
+        - subnet: ${SUBNET}
+
+services:
+  rq_queue:
+    container_name: srv_rq_queue
+    networks:
+      srv:
+        ipv4_address: ${RQ_QUEUE_HOST}
+    build:
+      context: ./rq_queue
+      dockerfile: Dockerfile
+    volumes:
+      - ./rq_queue:/var/www
+  nginx:
+    container_name: srv_nginx
+    ports:
+      - '8181:8181'
+      - '8182:8182'
+      - '8080:8080'
+#      - '8443:443'
+#      - '8079:79'
+#      - '8089:442'
+    build:
+      context: ./nginx
+      dockerfile: Dockerfile
+    volumes:
+      - ./nginx/Conf/rq_queue.conf:/etc/nginx/conf.d/rq_queue.conf
+      - ./nginx/Conf/symfony.conf:/etc/nginx/conf.d/symfony.conf
+      #- ./container/Nginx/Conf/server.conf:/etc/nginx/conf.d/server.conf
+#      - ../geo/container/certbot/config:/etc/letsencrypt/
+      - ./nginx/options-ssl-nginx.conf:/etc/letsencrypt/options-ssl-nginx.conf
+    networks:
+      srv:
+        ipv4_address: ${NGINX_HOST}
+    depends_on:
+      - symfony
+      - database
+      - rq_queue
+  symfony:
+    container_name: srv_symfony
+    build:
+      context: ./symfony
+      dockerfile: Dockerfile
+    volumes:
+      - ./symfony:/var/www
+    depends_on:
+      - database
+    ports:
+      - '9003:9003'
+    networks:
+      srv:
+        ipv4_address: ${SYMFONY_HOST}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+  ##> doctrine/doctrine-bundle ###
+  database:
+    container_name: srv_postgres
+    build:
+      context: ./postgres
+    environment:
+      - POSTGRES_DB=srv
+      - POSTGRES_PASSWORD=1234
+      - POSTGRES_USER=srv
+      - DB_USER=srv
+    volumes:
+      - ./postgres/data:/var/lib/postgresql/data:rw
+      - ./postgres/pgbouncer:/etc/pgbouncer/
+    networks:
+      srv:
+        ipv4_address: ${POSTGRES_HOST}
+    ports:
+      - "5432:5432"
+    command: sh -c "docker-entrypoint.sh postgres & sleep 3 && ./start-pgbouncer.sh && sleep infinity"
+      # You may use a bind-mounted host directory instead, so that it is harder to accidentally remove the volume and lose all your data!
+      # - ./docker/db/data:/var/lib/postgresql/data:rw
+  redis:
+    container_name: srv_redis
+    build:
+      context: ./redis
+    ports:
+      - '6379:6379'
+    networks:
+      srv:
+        ipv4_address: ${REDIS_HOST}
+#  ffmpeg:
+#    container_name: container_ffmpeg
+#    build:
+#      context: ./container/ffmpeg
+#    volumes:
+#      - ./:/var/www/html
+#    depends_on:
+#      - database
+#    networks:
+#      tg-auth:
+#        ipv4_address: 192.162.0.6
+  go:
+    container_name: srv_go
+    build:
+      context: ./go
+    volumes:
+      - ./go:/var/www
+    depends_on:
+      - rq_queue
+      - redis
+      - nginx
+      - nats
+      - symfony
+      - database
+    networks:
+      srv:
+        ipv4_address: ${GO_HOST}
+  nats:
+    container_name: srv_nats
+    build:
+      context: ./nats
+    depends_on:
+      - rq_queue
+      - redis
+      - nginx
+    ports:
+      - '4222:4222'
+      - '6222:6222'
+    networks:
+      srv:
+        ipv4_address: ${NATS_HOST}
+  ###> doctrine/doctrine-bundle ###
+#  certbot:
+#    container_name: container_certbot
+#    build:
+#      context: ./container/certbot
+#    ports:
+#      - '80:80'
+#    volumes:
+#      - ./container/certbot/letsencrypt:/etc/letsencrypt/
+#    networks:
+#      tg-auth:
+#        ipv4_address: 192.168.0.101
+#    depends_on:
+#      - nginx
+#    command: certbot certonly --webroot --webroot-path=/ssl-certbot --email rafeenkovlad@gmail.com --agree-tos --no-eff-email -d sss03.ru -d geo.sss03.ru -d notifi.sss03.ru
