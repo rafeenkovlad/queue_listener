@@ -2,10 +2,10 @@
 
 namespace App\RqQueue\RouteLoader\Routes;
 
-use App\RqQueue\Exception\ApiException;
 use App\RqQueue\RouteLoader\AbstractRoute;
 use App\RqQueue\RouteLoader\RouteInterface;
 use App\RqQueue\RouteLoader\RouteMap;
+use App\RqQueue\Service\Validate\Validate;
 
 class QueueRoute extends AbstractRoute implements RouteInterface
 {
@@ -25,9 +25,23 @@ class QueueRoute extends AbstractRoute implements RouteInterface
         $this->streamName = RouteMap::streamName(RouteMap::QUEUE);
     }
 
-    protected function validate(\stdClass $std): void
+    protected function validate(Validate $std): void
     {
-        $std->queue ?? throw ApiException::custom('parameter queue will be not empty', 400);
+        /** @var Validate $queue */
+        $queue = $std->setPropertyValidate('queue')
+            ->notBlank()
+            ->isObject()
+            ->getValue();
+
+        $queue->setPropertyValidate('job1')
+            ->notBlank()
+            ->isArray();
+        $queue->setPropertyValidate('job2')
+            ->notBlank()
+            ->isObject();
+        $queue->setPropertyValidate('job3')
+            ->notBlank()
+            ->isString();
     }
 
     protected function topicName(): void

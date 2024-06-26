@@ -2,6 +2,9 @@
 
 namespace App\RqQueue\RouteLoader;
 
+use App\RqQueue\Exception\ApiException;
+use App\RqQueue\Service\Validate\Validate;
+
 abstract class AbstractRoute
 {
 
@@ -44,16 +47,22 @@ abstract class AbstractRoute
 
     abstract protected function bodyJson(string $json): void;
 
-    abstract protected function validate(\stdClass $std): void;
+    /**
+     * @throws ApiException
+     */
+    abstract protected function validate(Validate $std): void;
 
     /**
      * @param string $json
-     * @param string $token Bearer
+     * @param string $token
      * @return void
+     * @throws ApiException
      */
     public function setJob(string $json, string $token): void
     {
         $std = json_decode($json, false);
+        $std = new Validate($std);
+//        var_dump($std);
         static::validate($std);
         static::bodyJson($json);
         $this->token = $token;
